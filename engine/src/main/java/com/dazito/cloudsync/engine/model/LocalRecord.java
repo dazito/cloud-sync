@@ -1,4 +1,4 @@
-package net.jonathangiles.cloudsync.engine.model;
+package com.dazito.cloudsync.engine.model;
 
 import lombok.Data;
 

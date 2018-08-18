@@ -1,7 +1,7 @@
-package net.jonathangiles.cloudsync.engine.util;
+package com.dazito.cloudsync.engine.util;
 
+import com.dazito.cloudsync.engine.model.Backup;
 import lombok.Getter;
-import net.jonathangiles.cloudsync.engine.model.Backup;
 
 import java.nio.file.Path;
 

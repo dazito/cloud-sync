@@ -1,11 +1,11 @@
-package net.jonathangiles.cloudsync.engine.util.config;
+package com.dazito.cloudsync.engine.util.config;
 
+import com.dazito.cloudsync.engine.model.Backup;
 import lombok.Getter;
 import net.jmob.guice.conf.core.BindConfig;
 import net.jmob.guice.conf.core.InjectConfig;
 import net.jmob.guice.conf.core.Syntax;
-import net.jonathangiles.cloudsync.engine.BackupEngineModule;
-import net.jonathangiles.cloudsync.engine.model.Backup;
+import com.dazito.cloudsync.engine.BackupEngineModule;
 
 import java.util.List;
 import java.util.Map;

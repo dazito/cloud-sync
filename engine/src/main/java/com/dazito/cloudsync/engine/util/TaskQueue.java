@@ -1,10 +1,10 @@
-package net.jonathangiles.cloudsync.engine.util;
+package com.dazito.cloudsync.engine.util;
 
+import com.dazito.cloudsync.engine.cloud.CloudStore;
 import io.reactivex.Observable;
 import io.reactivex.subjects.PublishSubject;
 import io.reactivex.subjects.Subject;
-import net.jonathangiles.cloudsync.engine.BackupEngine;
-import net.jonathangiles.cloudsync.engine.cloud.CloudStore;
+import com.dazito.cloudsync.engine.BackupEngine;
 
 import javax.inject.Singleton;
 

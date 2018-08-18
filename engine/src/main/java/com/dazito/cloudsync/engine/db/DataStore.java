@@ -1,7 +1,7 @@
-package net.jonathangiles.cloudsync.engine.db;
+package com.dazito.cloudsync.engine.db;
 
-import net.jonathangiles.cloudsync.engine.model.Backup;
-import net.jonathangiles.cloudsync.engine.model.LocalRecord;
+import com.dazito.cloudsync.engine.model.Backup;
+import com.dazito.cloudsync.engine.model.LocalRecord;
 
 import java.nio.file.Path;
 import java.util.List;

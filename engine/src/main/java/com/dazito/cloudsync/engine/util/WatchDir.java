@@ -1,4 +1,4 @@
-package net.jonathangiles.cloudsync.engine.util;
+package com.dazito.cloudsync.engine.util;
 
 import java.nio.file.*;
 import static java.nio.file.StandardWatchEventKinds.*;

@@ -1,15 +1,15 @@
-package net.jonathangiles.cloudsync.engine.cloud.azure;
+package com.dazito.cloudsync.engine.cloud.azure;
 
 import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
-import net.jonathangiles.cloudsync.engine.cloud.CloudStore;
-import net.jonathangiles.cloudsync.engine.model.Backup;
-import net.jonathangiles.cloudsync.engine.util.Task;
-import net.jonathangiles.cloudsync.engine.util.TaskQueue;
-import net.jonathangiles.cloudsync.engine.util.config.Config;
+import com.dazito.cloudsync.engine.cloud.CloudStore;
+import com.dazito.cloudsync.engine.model.Backup;
+import com.dazito.cloudsync.engine.util.Task;
+import com.dazito.cloudsync.engine.util.TaskQueue;
+import com.dazito.cloudsync.engine.util.config.Config;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
