@@ -1,9 +1,9 @@
-package net.jonathangiles.cloudsync.engine.db.jpa;
+package com.dazito.cloudsync.engine.db.jpa;
 
-import net.jonathangiles.cloudsync.engine.db.DataStore;
-import net.jonathangiles.cloudsync.engine.model.Backup;
-import net.jonathangiles.cloudsync.engine.model.LocalRecord;
-import net.jonathangiles.cloudsync.engine.util.config.Config;
+import com.dazito.cloudsync.engine.model.Backup;
+import com.dazito.cloudsync.engine.model.LocalRecord;
+import com.dazito.cloudsync.engine.db.DataStore;
+import com.dazito.cloudsync.engine.util.config.Config;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;

@@ -89,7 +89,7 @@
                     </execution>
                 </executions>
                 <configuration>
-                    <mainClass>net.jonathangiles.cloudsync.engine.BackupEngine</mainClass>
+                    <mainClass>com.dazito.cloudsync.engine.BackupEngine</mainClass>
                 </configuration>
             </plugin>
         </plugins>

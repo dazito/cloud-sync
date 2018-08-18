@@ -1,12 +1,12 @@
-package net.jonathangiles.cloudsync.engine;
+package com.dazito.cloudsync.engine;
 
+import com.dazito.cloudsync.engine.cloud.CloudStore;
+import com.dazito.cloudsync.engine.cloud.azure.AzureCloudStore;
+import com.dazito.cloudsync.engine.db.DataStore;
+import com.dazito.cloudsync.engine.db.jpa.JPADataStore;
+import com.dazito.cloudsync.engine.util.config.Config;
 import com.google.inject.AbstractModule;
 import net.jmob.guice.conf.core.ConfigurationModule;
-import net.jonathangiles.cloudsync.engine.cloud.CloudStore;
-import net.jonathangiles.cloudsync.engine.cloud.azure.AzureCloudStore;
-import net.jonathangiles.cloudsync.engine.db.DataStore;
-import net.jonathangiles.cloudsync.engine.db.jpa.JPADataStore;
-import net.jonathangiles.cloudsync.engine.util.config.Config;
 
 import java.io.File;
 

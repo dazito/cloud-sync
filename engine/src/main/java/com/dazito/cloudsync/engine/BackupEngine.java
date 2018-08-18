@@ -1,4 +1,4 @@
-package net.jonathangiles.cloudsync.engine;
+package com.dazito.cloudsync.engine;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -6,17 +6,15 @@ import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.util.List;
 
+import com.dazito.cloudsync.engine.cloud.CloudStore;
+import com.dazito.cloudsync.engine.db.DataStore;
+import com.dazito.cloudsync.engine.model.Backup;
+import com.dazito.cloudsync.engine.model.LocalRecord;
+import com.dazito.cloudsync.engine.util.Task;
+import com.dazito.cloudsync.engine.util.TaskQueue;
+import com.dazito.cloudsync.engine.util.WatchDir;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
-import net.jonathangiles.cloudsync.engine.cloud.CloudStore;
-import net.jonathangiles.cloudsync.engine.db.DataStore;
-import net.jonathangiles.cloudsync.engine.model.Backup;
-import net.jonathangiles.cloudsync.engine.model.LocalRecord;
-import net.jonathangiles.cloudsync.engine.util.Task;
-import net.jonathangiles.cloudsync.engine.util.TaskQueue;
-import net.jonathangiles.cloudsync.engine.util.WatchDir;
-import net.jonathangiles.cloudsync.engine.util.config.Config;
-
 import javax.inject.Inject;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;

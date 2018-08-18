@@ -1,6 +1,6 @@
-package net.jonathangiles.cloudsync.engine.cloud;
+package com.dazito.cloudsync.engine.cloud;
 
-import net.jonathangiles.cloudsync.engine.model.Backup;
+import com.dazito.cloudsync.engine.model.Backup;
 
 import java.nio.file.Path;
 

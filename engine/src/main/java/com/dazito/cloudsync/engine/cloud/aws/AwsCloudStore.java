@@ -1,16 +1,16 @@
-package net.jonathangiles.cloudsync.engine.cloud.aws;
+package com.dazito.cloudsync.engine.cloud.aws;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.dazito.cloudsync.engine.cloud.CloudStore;
 import lombok.extern.slf4j.Slf4j;
-import net.jonathangiles.cloudsync.engine.cloud.CloudStore;
-import net.jonathangiles.cloudsync.engine.model.Backup;
-import net.jonathangiles.cloudsync.engine.util.Task;
-import net.jonathangiles.cloudsync.engine.util.TaskQueue;
-import net.jonathangiles.cloudsync.engine.util.config.Config;
+import com.dazito.cloudsync.engine.model.Backup;
+import com.dazito.cloudsync.engine.util.Task;
+import com.dazito.cloudsync.engine.util.TaskQueue;
+import com.dazito.cloudsync.engine.util.config.Config;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
