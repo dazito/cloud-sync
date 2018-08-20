@@ -1,56 +1,69 @@
 package com.dazito.cloudsync.engine.util;
 
-import java.nio.file.*;
+import com.dazito.cloudsync.engine.event.BackupEvent;
+import com.dazito.cloudsync.engine.event.CloudSyncRxBus;
+import io.reactivex.Observable;
+import lombok.extern.slf4j.Slf4j;
+
+import static java.nio.file.LinkOption.NOFOLLOW_LINKS;
 import static java.nio.file.StandardWatchEventKinds.*;
-import static java.nio.file.LinkOption.*;
-import java.nio.file.attribute.*;
-import java.io.*;
-import java.util.*;
+
+import java.io.IOException;
+import java.nio.file.FileSystems;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchKey;
+import java.nio.file.WatchService;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.function.BiConsumer;
+import java.util.concurrent.TimeUnit;
 
+@Slf4j
 public class WatchDir {
-
-    private static final int SLEEP_DURATION = 5000;
 
     private final WatchService watcher;
     private final Map<WatchKey, Path> keys;
     private final boolean recursive;
-    private final BiConsumer<WatchEvent, Path> eventConsumer;
+    private final CloudSyncRxBus cloudSyncRxBus;
 
     private ExecutorService watchService = Executors.newSingleThreadExecutor();
 
     /**
      * Creates a WatchService and registers the given directory
      */
-    public WatchDir(Path dir, boolean recursive, BiConsumer<WatchEvent,Path> eventConsumer) throws IOException {
+    public WatchDir(Path path, boolean recursive, CloudSyncRxBus cloudSyncRxBus) throws IOException {
         this.watcher = FileSystems.getDefault().newWatchService();
         this.keys = new HashMap<>();
         this.recursive = recursive;
-        this.eventConsumer = eventConsumer;
+        this.cloudSyncRxBus = cloudSyncRxBus;
 
         if (recursive) {
-            registerAll(dir);
+            registerAll(path);
         } else {
-            register(dir);
+            register(path);
         }
 
-        watchService.submit(this::processEvents);
+		watchService.submit(this::processEvents);
     }
 
     /**
      * Register the given directory with the WatchService
      */
-    private void register(Path dir) throws IOException {
-        WatchKey key = dir.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
-        keys.put(key, dir);
+    private void register(Path path) throws IOException {
+        WatchKey key = path.register(watcher, ENTRY_CREATE, ENTRY_DELETE, ENTRY_MODIFY);
+        keys.put(key, path);
     }
 
-    /**
-     * Register the given directory, and all its sub-directories, with the
-     * WatchService.
-     */
+		/**
+		 * Register the given directory, and all its sub-directories, with the
+		 * WatchService.
+		 */
     private void registerAll(final Path start) throws IOException {
         // register directory and sub-directories
         Files.walkFileTree(start, new SimpleFileVisitor<Path>() {
@@ -62,61 +75,63 @@ public class WatchDir {
     }
 
     private void processEvents() {
-        while (true) {
-            WatchKey key;
-            try {
-                key = watcher.take();
-            } catch (InterruptedException x) {
-                return;
-            }
+		log.debug("Process events on thread: {}", Thread.currentThread().toString());
 
-            Path dir = keys.get(key);
-            if (dir == null) {
-                continue;
-            }
+		Observable<Long> interval = Observable.interval(1, 3, TimeUnit.SECONDS);
 
-            for (WatchEvent<?> event: key.pollEvents()) {
-                WatchEvent.Kind kind = event.kind();
+		interval.subscribe(timeTick -> {
+			log.debug("Got a time tick on thread: {}", Thread.currentThread().toString());
 
-                if (kind == OVERFLOW) {
-                    continue;
-                }
+			WatchKey key = watcher.poll();
 
-                Path name = (Path)event.context();
-                Path child = dir.resolve(name);
+			if(key == null) {
+				return;
+			}
 
-                // send event over to backup client to handle it appropriately
-                eventConsumer.accept(event, child);
+			Path dir = keys.get(key);
+			if (dir == null) {
+				log.info("Dir is null!");
+				return;
+			}
 
-                // if directory is created, and watching recursively, then
-                // register it and its sub-directories
-                if (recursive && (kind == ENTRY_CREATE)) {
-                    try {
-                        if (Files.isDirectory(child, NOFOLLOW_LINKS)) {
-                            registerAll(child);
-                        }
-                    } catch (IOException x) {
-                        // ignore to keep sample readbale
-                    }
-                }
-            }
+			for (WatchEvent<?> event : key.pollEvents()) {
+				WatchEvent.Kind kind = event.kind();
 
-            // reset key and remove from set if directory no longer accessible
-            boolean valid = key.reset();
-            if (!valid) {
-                keys.remove(key);
+				if (kind == OVERFLOW) {
+					log.info("Kind is overflow");
+					continue;
+				}
 
-                // all directories are inaccessible
-                if (keys.isEmpty()) {
-                    break;
-                }
-            }
+				Path name = (Path) event.context();
+				Path child = dir.resolve(name);
 
-            try {
-                Thread.sleep(SLEEP_DURATION);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
+				// send event over to backup client to handle it appropriately
+				cloudSyncRxBus.setBackupEvent(new BackupEvent(event, child));
+
+				// if directory is created, and watching recursively, then
+				// register it and its sub-directories
+				if (recursive && (kind == ENTRY_CREATE)) {
+					try {
+						if (Files.isDirectory(child, NOFOLLOW_LINKS)) {
+							registerAll(child);
+						}
+					} catch (IOException x) {
+						log.error("Error while registering all, {}, x");
+						// ignore to keep sample readable
+					}
+				}
+			}
+
+			// reset key and remove from set if directory no longer accessible
+			boolean valid = key.reset();
+			if (!valid) {
+				keys.remove(key);
+
+				// all directories are inaccessible
+				if (keys.isEmpty()) {
+					log.info("keys is empty");
+				}
+			}
+		});
+	}
 }

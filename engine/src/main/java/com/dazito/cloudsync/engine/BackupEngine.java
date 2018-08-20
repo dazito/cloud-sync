@@ -1,6 +1,6 @@
 package com.dazito.cloudsync.engine;
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
@@ -8,6 +8,8 @@ import java.util.List;
 
 import com.dazito.cloudsync.engine.cloud.CloudStore;
 import com.dazito.cloudsync.engine.db.DataStore;
+import com.dazito.cloudsync.engine.event.BackupEvent;
+import com.dazito.cloudsync.engine.event.CloudSyncRxBus;
 import com.dazito.cloudsync.engine.model.Backup;
 import com.dazito.cloudsync.engine.model.LocalRecord;
 import com.dazito.cloudsync.engine.util.Task;
@@ -15,12 +17,16 @@ import com.dazito.cloudsync.engine.util.TaskQueue;
 import com.dazito.cloudsync.engine.util.WatchDir;
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import io.reactivex.schedulers.Schedulers;
+import lombok.extern.slf4j.Slf4j;
+
 import javax.inject.Inject;
 
 import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY;
 
+@Slf4j
 public class BackupEngine {
     // local data store
     private final DataStore localDataStore;
@@ -31,6 +37,8 @@ public class BackupEngine {
     // task queue
     private final TaskQueue taskQueue;
 
+    private CloudSyncRxBus cloudSyncRxBus;
+
     public static void main(String[] args) {
         Injector injector = Guice.createInjector(new BackupEngineModule());
         BackupEngine backupEngine = injector.getInstance(BackupEngine.class);
@@ -38,10 +46,11 @@ public class BackupEngine {
     }
 
     @Inject
-    private BackupEngine(DataStore dataStore, CloudStore cloudStore, TaskQueue taskQueue) {
+    private BackupEngine(DataStore dataStore, CloudStore cloudStore, TaskQueue taskQueue, CloudSyncRxBus cloudSyncRxBus) {
         this.localDataStore = dataStore;
         this.cloudStore = cloudStore;
         this.taskQueue = taskQueue;
+        this.cloudSyncRxBus = cloudSyncRxBus;
     }
 
     private void start() {
@@ -50,7 +59,7 @@ public class BackupEngine {
 
         // for each backup, we need to ensure that there is a corresponding container in the cloud, and
         // because the app is just booting up, we need to do a full consistency check on each backup
-        backupList.parallelStream().forEach(backup -> {
+        backupList.forEach(backup -> {
             // make a backup container on Azure Storage if it doesn't currently exist
             validateBackupContainerExists(backup);
 
@@ -74,55 +83,73 @@ public class BackupEngine {
      *  3) Do properties (file size, last modified, etc) of any file differ from the local database? Replace file in cloud!
      */
     private void runConsistencyCheck(Backup backup) {
-        System.out.println("Performing consistency check for backup '" + backup.getBackupName() + "' in directory " + backup.getRootDirectoryString());
+        log.info("Performing consistency check for backup ::{}:: in directory ::{}::",
+                backup.getBackupName(), backup.getRootDirectoryString());
 
         // check 1 - remove files from Cloud Storage which no longer exist on the file system
         localDataStore
                 .getBackupRecords(backup)
-                .parallel()
                 .filter(record -> !Files.exists(record.getPath()))
                 .forEach(record -> removeFile(backup, record));
 
         // checks 2 and 3 - looking for local file system changes that have not been uploaded yet
         try {
             Files.find(backup.getRootDirectory(), 10000, (path, attributes) -> attributes.isRegularFile())
-                    .parallel()
                     .forEach(p -> checkFile(backup, p));
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        System.out.println("Consistency check for backup '" + backup.getBackupName() + "' in directory " + backup.getRootDirectoryString() + " is now complete");
+       log.info("Consistency check for backup ::{}:: in directory ::{}:: is now complete",
+               backup.getBackupName(), backup.getRootDirectoryString() );
     }
 
     private void startFolderWatcher(Backup backup) {
         try {
-            new WatchDir(backup.getRootDirectory(), true, (watchEvent, path) -> {
-                WatchEvent.Kind eventKind = watchEvent.kind();
-                if (eventKind == ENTRY_CREATE || eventKind == ENTRY_MODIFY) {
-                    checkFile(backup, path);
-                } else if (eventKind == ENTRY_DELETE) {
-                    // delete file from cloud storage / local DB
-                    removeFile(backup, path);
-                }
-            });
+            // Subscribe to listen for BackupEvent events
+			cloudSyncRxBus.getBackupEventObservable()
+					.observeOn(Schedulers.computation())
+					.subscribe(backupEvent -> handleBackupEvent(backup, backupEvent));
+
+			// Start watching the directory
+            new WatchDir(backup.getRootDirectory(), true, cloudSyncRxBus);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private void checkFile(Backup backup, Path p) {
-        LocalRecord localRecord = localDataStore.getLocalRecord(backup, p);
+    // Appropriately handle BackupEvents, check the event type and act accordingly
+    private void handleBackupEvent(Backup backup, BackupEvent backupEvent) {
+        log.debug("Received a new event: {} - {} on thread: {}",
+                backupEvent.getWatchEvent().kind().toString(),
+                backupEvent.getPath(),
+                Thread.currentThread().toString()
+        );
+
+        WatchEvent.Kind eventKind = backupEvent.getWatchEvent().kind();
+
+        if (eventKind == ENTRY_CREATE || eventKind == ENTRY_MODIFY) {
+            checkFile(backup, backupEvent.getPath());
+        }
+        else if (eventKind == ENTRY_DELETE) {
+            // delete file from cloud storage / local DB
+            removeFile(backup, backupEvent.getPath());
+        }
+    }
+
+    private void checkFile(Backup backup, Path path) {
+        LocalRecord localRecord = localDataStore.getLocalRecord(backup, path);
         if (localRecord == null) {
             // we don't know about this file - we should add it to our upload list!
-            uploadNewFile(backup, p);
-        } else {
+            uploadNewFile(backup, path);
+        }
+        else {
             // we do know of this file, but we must ensure that the file system version matches
             // what we have in our database
-            if (!localRecord.matches(p)) {
+            if (!localRecord.matches(path)) {
                 // what we have recorded does not match with what the file is reporting,
                 // so we must delete the old file on Azure and replace it with this file
-                replaceFile(backup, p, localRecord);
+                replaceFile(backup, path, localRecord);
             }
         }
     }
