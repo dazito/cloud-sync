@@ -12,6 +12,7 @@ import com.dazito.cloudsync.engine.event.BackupEvent;
 import com.dazito.cloudsync.engine.event.CloudSyncRxBus;
 import com.dazito.cloudsync.engine.model.Backup;
 import com.dazito.cloudsync.engine.model.LocalRecord;
+import com.dazito.cloudsync.engine.util.CacheService;
 import com.dazito.cloudsync.engine.util.Task;
 import com.dazito.cloudsync.engine.util.TaskQueue;
 import com.dazito.cloudsync.engine.util.WatchDir;
@@ -37,7 +38,10 @@ public class BackupEngine {
     // task queue
     private final TaskQueue taskQueue;
 
+    // Internal message bus
     private CloudSyncRxBus cloudSyncRxBus;
+
+    private CacheService cacheService;
 
     public static void main(String[] args) {
         Injector injector = Guice.createInjector(new BackupEngineModule());
@@ -46,11 +50,12 @@ public class BackupEngine {
     }
 
     @Inject
-    private BackupEngine(DataStore dataStore, CloudStore cloudStore, TaskQueue taskQueue, CloudSyncRxBus cloudSyncRxBus) {
+    private BackupEngine(DataStore dataStore, CloudStore cloudStore, TaskQueue taskQueue, CloudSyncRxBus cloudSyncRxBus, CacheService cacheService) {
         this.localDataStore = dataStore;
         this.cloudStore = cloudStore;
         this.taskQueue = taskQueue;
         this.cloudSyncRxBus = cloudSyncRxBus;
+        this.cacheService = cacheService;
     }
 
     private void start() {
@@ -60,16 +65,19 @@ public class BackupEngine {
         // for each backup, we need to ensure that there is a corresponding container in the cloud, and
         // because the app is just booting up, we need to do a full consistency check on each backup
         backupList.forEach(backup -> {
+            // Cache all Backups
+            cacheService.cacheBackup(backup.getRootDirectory(), backup);
+
             // make a backup container on Azure Storage if it doesn't currently exist
             validateBackupContainerExists(backup);
 
             // run a startup consistency check to make sure we are consistent between local filesystem, local database,
             // and remote storage
             runConsistencyCheck(backup);
-
-            // start up the folder watcher to watch for changes at runtime
-            startFolderWatcher(backup);
         });
+
+        // start up the folder watcher to watch for changes at runtime
+        startFolderWatcher(backupList);
     }
 
     private void validateBackupContainerExists(Backup backup) {
@@ -104,27 +112,38 @@ public class BackupEngine {
                backup.getBackupName(), backup.getRootDirectoryString() );
     }
 
-    private void startFolderWatcher(Backup backup) {
+    private void startFolderWatcher(List<Backup> backupList) {
         try {
             // Subscribe to listen for BackupEvent events
 			cloudSyncRxBus.getBackupEventObservable()
 					.observeOn(Schedulers.computation())
-					.subscribe(backupEvent -> handleBackupEvent(backup, backupEvent));
+					.subscribe(this::handleBackupEvent);
 
 			// Start watching the directory
-            new WatchDir(backup.getRootDirectory(), true, cloudSyncRxBus);
+            new WatchDir(backupList, true, cloudSyncRxBus);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
     // Appropriately handle BackupEvents, check the event type and act accordingly
-    private void handleBackupEvent(Backup backup, BackupEvent backupEvent) {
+    private void handleBackupEvent(final BackupEvent backupEvent) {
         log.debug("Received a new event: {} - {} on thread: {}",
                 backupEvent.getWatchEvent().kind().toString(),
                 backupEvent.getPath(),
                 Thread.currentThread().toString()
         );
+
+        Path backupPath = backupEvent.getBackupPath();
+        final Backup backup = cacheService
+                .getBackup(backupPath)
+                .orElseGet(() -> {
+                    Backup newBackup = localDataStore.getBackup(backupPath.toString());
+                    // Save to cache
+                    cacheService.cacheBackup(backupPath, newBackup);
+                    log.debug("Database hit to fetch backup for: {}", backupPath.toString());
+                    return newBackup;
+                });
 
         WatchEvent.Kind eventKind = backupEvent.getWatchEvent().kind();
 

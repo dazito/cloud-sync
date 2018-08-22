@@ -23,6 +23,8 @@ public class Backup {
 
     @Transient
     private Path rootDirectory;
+
+    @Column(unique=true)
     private String rootDirectoryString;
 
     @OneToMany(mappedBy = "backup", cascade = CascadeType.ALL)

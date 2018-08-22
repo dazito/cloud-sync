@@ -29,40 +29,40 @@ public class LocalRecord implements Comparable {
 
     public static Optional<LocalRecord> create(Backup backup, Path p) {
         try {
-            LocalRecord r = new LocalRecord();
-            configure(r, backup, p);
-            return Optional.of(r);
+            LocalRecord localRecord = new LocalRecord();
+            configure(localRecord, backup, p);
+            return Optional.of(localRecord);
         } catch (IOException e) {
             e.printStackTrace();
             return Optional.empty();
         }
     }
 
-    public void update(Backup backup, Path p) {
+    public void update(Backup backup, Path path) {
         try {
-            configure(this, backup, p);
+            configure(this, backup, path);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    public boolean matches(Path p) {
+    public boolean matches(Path path) {
         try {
-            return p != null &&
-                    p.toString().equals(filePath) &&
-                    Files.getLastModifiedTime(p).toMillis() == lastModifiedTime &&
-                    Files.size(p) == size;
+            return path != null &&
+                    path.toString().equals(filePath) &&
+                    Files.getLastModifiedTime(path).toMillis() == lastModifiedTime &&
+                    Files.size(path) == size;
         } catch (IOException e) {
             e.printStackTrace();
             return false;
         }
     }
 
-    private static void configure(LocalRecord r, Backup backup, Path p) throws IOException {
-        r.backup = backup;
-        r.filePath = p.toString();
-        r.lastModifiedTime = Files.getLastModifiedTime(p).toMillis();
-        r.size = Files.size(p);
+    private static void configure(LocalRecord localRecord, Backup backup, Path path) throws IOException {
+        localRecord.backup = backup;
+        localRecord.filePath = path.toString();
+        localRecord.lastModifiedTime = Files.getLastModifiedTime(path).toMillis();
+        localRecord.size = Files.size(path);
     }
 
     public Path getPath() {
