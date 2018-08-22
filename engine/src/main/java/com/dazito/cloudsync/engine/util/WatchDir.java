@@ -2,6 +2,7 @@ package com.dazito.cloudsync.engine.util;
 
 import com.dazito.cloudsync.engine.event.BackupEvent;
 import com.dazito.cloudsync.engine.event.CloudSyncRxBus;
+import com.dazito.cloudsync.engine.model.Backup;
 import io.reactivex.Observable;
 import lombok.extern.slf4j.Slf4j;
 
@@ -19,6 +20,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,20 +39,31 @@ public class WatchDir {
     /**
      * Creates a WatchService and registers the given directory
      */
-    public WatchDir(Path path, boolean recursive, CloudSyncRxBus cloudSyncRxBus) throws IOException {
+    public WatchDir(List<Backup> backupList, boolean recursive, CloudSyncRxBus cloudSyncRxBus) throws IOException {
         this.watcher = FileSystems.getDefault().newWatchService();
         this.keys = new HashMap<>();
         this.recursive = recursive;
         this.cloudSyncRxBus = cloudSyncRxBus;
 
         if (recursive) {
-            registerAll(path);
+            registerAll(backupList);
         } else {
-            register(path);
+            register(backupList);
         }
 
 		watchService.submit(this::processEvents);
     }
+
+	/**
+	 * Overload method that will call {@link WatchDir#register(Path)} for each {@link Backup} in the list.
+	 * @param backupList
+	 * @throws IOException
+	 */
+	private void register(List<Backup> backupList) throws IOException {
+    	for(Backup backup : backupList) {
+    		register(backup.getRootDirectory());
+		}
+	}
 
     /**
      * Register the given directory with the WatchService
@@ -60,19 +73,30 @@ public class WatchDir {
         keys.put(key, path);
     }
 
-		/**
-		 * Register the given directory, and all its sub-directories, with the
-		 * WatchService.
-		 */
-    private void registerAll(final Path start) throws IOException {
-        // register directory and sub-directories
-        Files.walkFileTree(start, new SimpleFileVisitor<Path>() {
-            @Override public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                register(dir);
-                return FileVisitResult.CONTINUE;
-            }
-        });
-    }
+	/**
+	 * Overload method that will call {@link WatchDir#registerAll(Path)} for each {@link Backup} in the list.
+	 * @param backupList
+	 * @throws IOException
+	 */
+	private void registerAll(final List<Backup>  backupList) throws IOException {
+    	for(Backup backup : backupList) {
+    		registerAll(backup.getRootDirectory());
+		}
+	}
+
+	/**
+	 * Register the given directory, and all its sub-directories, with the
+	 * WatchService.
+	 */
+	private void registerAll(final Path start) throws IOException {
+		// register directory and sub-directories
+		Files.walkFileTree(start, new SimpleFileVisitor<Path>() {
+			@Override public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+				register(dir);
+				return FileVisitResult.CONTINUE;
+			}
+		});
+	}
 
     private void processEvents() {
 		log.debug("Process events on thread: {}", Thread.currentThread().toString());
@@ -103,17 +127,17 @@ public class WatchDir {
 				}
 
 				Path name = (Path) event.context();
-				Path child = dir.resolve(name);
+				Path fullPath = dir.resolve(name);
 
 				// send event over to backup client to handle it appropriately
-				cloudSyncRxBus.setBackupEvent(new BackupEvent(event, child));
+				cloudSyncRxBus.setBackupEvent(new BackupEvent(event, fullPath, dir));
 
 				// if directory is created, and watching recursively, then
 				// register it and its sub-directories
 				if (recursive && (kind == ENTRY_CREATE)) {
 					try {
-						if (Files.isDirectory(child, NOFOLLOW_LINKS)) {
-							registerAll(child);
+						if (Files.isDirectory(fullPath, NOFOLLOW_LINKS)) {
+							registerAll(fullPath);
 						}
 					} catch (IOException x) {
 						log.error("Error while registering all, {}, x");

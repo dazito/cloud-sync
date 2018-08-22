@@ -9,6 +9,8 @@ import java.util.stream.Stream;
 
 public interface DataStore {
 
+    Backup getBackup(String rootDirectoryString);
+
     List<Backup> getBackupList();
 
     LocalRecord getLocalRecord(Backup backup, Path p);

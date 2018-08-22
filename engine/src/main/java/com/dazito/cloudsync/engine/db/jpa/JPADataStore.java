@@ -66,6 +66,16 @@ public class JPADataStore implements DataStore {
         });
     }
 
+    @Override
+    public Backup getBackup(String rootDirectoryString) {
+        TypedQuery<Backup> query = entityManager.createQuery(
+                "select b from Backup b where b.rootDirectoryString = :rootDirectory", Backup.class
+        );
+
+        query.setParameter("rootDirectory", rootDirectoryString);
+        return query.getSingleResult();
+    }
+
     public List<Backup> getBackupList() {
         return entityManager.createQuery("select b from Backup b").getResultList();
     }
